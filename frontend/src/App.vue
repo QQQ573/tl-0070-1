@@ -4,8 +4,11 @@
       <div class="header-inner">
         <h1 class="logo" @click="$router.push('/')">🧸 Labubu 藏品管理</h1>
         <nav class="nav">
+          <router-link to="/dashboard" class="nav-link" active-class="active">资产总览</router-link>
           <router-link to="/items" class="nav-link" active-class="active">藏品档案</router-link>
           <router-link to="/exchanges" class="nav-link" active-class="active">置换记录</router-link>
+          <router-link to="/market" class="nav-link" active-class="active">行情参考</router-link>
+          <router-link to="/recycle" class="nav-link" active-class="active">回收站</router-link>
         </nav>
       </div>
     </header>

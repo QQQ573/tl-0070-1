@@ -20,6 +20,29 @@ export const exchangesApi = {
   create: (data) => api.post('/exchanges', data),
   update: (id, data) => api.put(`/exchanges/${id}`, data),
   remove: (id) => api.delete(`/exchanges/${id}`),
+  confirm: (id) => api.post(`/exchanges/${id}/confirm`),
+  cancel: (id) => api.post(`/exchanges/${id}/cancel`),
+}
+
+export const marketApi = {
+  list: (params) => api.get('/market-prices', { params }),
+  get: (id) => api.get(`/market-prices/${id}`),
+  create: (data) => api.post('/market-prices', data),
+  update: (id, data) => api.put(`/market-prices/${id}`, data),
+  remove: (id) => api.delete(`/market-prices/${id}`),
+  trend: (styleId, params) => api.get(`/market-prices/trend/${encodeURIComponent(styleId)}`, { params }),
+}
+
+export const statsApi = {
+  dashboard: () => api.get('/stats/dashboard'),
+}
+
+export const recycleApi = {
+  list: () => api.get('/recycle'),
+  restoreItem: (id) => api.post(`/recycle/items/${id}/restore`),
+  restoreExchange: (id) => api.post(`/recycle/exchanges/${id}/restore`),
+  hardDeleteItem: (id) => api.delete(`/recycle/items/${id}`),
+  hardDeleteExchange: (id) => api.delete(`/recycle/exchanges/${id}`),
 }
 
 export const uploadsApi = {

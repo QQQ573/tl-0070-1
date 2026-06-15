@@ -7,6 +7,8 @@ import re
 RARITY_CHOICES = ["常规", "隐藏", "限定"]
 STATUS_CHOICES = ["在库", "已出", "置换中"]
 ACQUISITION_CHOICES = ["盲盒", "直购", "置换"]
+FLOW_STATUS_CHOICES = ["洽谈中", "已成交", "已撤回"]
+PLATFORM_CHOICES = ["闲鱼", "千岛", "线下"]
 
 
 class ItemCreate(BaseModel):
@@ -130,7 +132,15 @@ class ExchangeCreate(BaseModel):
     exchange_date: str
     counterparty: str
     price_difference: float = 0.0
+    flow_status: str = "洽谈中"
     notes: Optional[str] = None
+
+    @field_validator("flow_status")
+    @classmethod
+    def validate_flow_status(cls, v):
+        if v not in FLOW_STATUS_CHOICES:
+            raise ValueError(f"流转状态必须为: {FLOW_STATUS_CHOICES}")
+        return v
 
     @field_validator("exchange_date")
     @classmethod
@@ -145,7 +155,15 @@ class ExchangeUpdate(BaseModel):
     exchange_date: Optional[str] = None
     counterparty: Optional[str] = None
     price_difference: Optional[float] = None
+    flow_status: Optional[str] = None
     notes: Optional[str] = None
+
+    @field_validator("flow_status")
+    @classmethod
+    def validate_flow_status(cls, v):
+        if v is not None and v not in FLOW_STATUS_CHOICES:
+            raise ValueError(f"流转状态必须为: {FLOW_STATUS_CHOICES}")
+        return v
 
     @field_validator("exchange_date")
     @classmethod
@@ -161,6 +179,7 @@ class ExchangeOut(BaseModel):
     exchange_date: str
     counterparty: str
     price_difference: float
+    flow_status: str = "洽谈中"
     notes: Optional[str] = None
     created_at: datetime
     updated_at: datetime
@@ -176,3 +195,128 @@ class ExchangePage(BaseModel):
     page: int
     page_size: int
     exchanges: list[ExchangeOut]
+
+
+class MarketPriceCreate(BaseModel):
+    style_id: str
+    platform: str
+    deal_price: float
+    record_date: str
+    notes: Optional[str] = None
+
+    @field_validator("platform")
+    @classmethod
+    def validate_platform(cls, v):
+        if v not in PLATFORM_CHOICES:
+            raise ValueError(f"平台必须为: {PLATFORM_CHOICES}")
+        return v
+
+    @field_validator("deal_price")
+    @classmethod
+    def validate_price(cls, v):
+        if v <= 0:
+            raise ValueError("成交价必须大于 0")
+        return v
+
+    @field_validator("record_date")
+    @classmethod
+    def validate_record_date(cls, v):
+        if not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+            raise ValueError("记录日期格式必须为 YYYY-MM-DD")
+        return v
+
+
+class MarketPriceUpdate(BaseModel):
+    style_id: Optional[str] = None
+    platform: Optional[str] = None
+    deal_price: Optional[float] = None
+    record_date: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("platform")
+    @classmethod
+    def validate_platform(cls, v):
+        if v is not None and v not in PLATFORM_CHOICES:
+            raise ValueError(f"平台必须为: {PLATFORM_CHOICES}")
+        return v
+
+    @field_validator("deal_price")
+    @classmethod
+    def validate_price(cls, v):
+        if v is not None and v <= 0:
+            raise ValueError("成交价必须大于 0")
+        return v
+
+    @field_validator("record_date")
+    @classmethod
+    def validate_record_date(cls, v):
+        if v is not None and not re.match(r"^\d{4}-\d{2}-\d{2}$", v):
+            raise ValueError("记录日期格式必须为 YYYY-MM-DD")
+        return v
+
+
+class MarketPriceOut(BaseModel):
+    id: int
+    style_id: str
+    platform: str
+    deal_price: float
+    record_date: str
+    notes: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MarketPricePage(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    prices: list[MarketPriceOut]
+
+
+class MarketPriceTrend(BaseModel):
+    style_id: str
+    records: list[MarketPriceOut]
+    latest_price: Optional[float] = None
+    purchase_price: Optional[float] = None
+    diff_percent: Optional[float] = None
+
+
+class SeriesStat(BaseModel):
+    series: str
+    count: int
+    total_value: float
+
+
+class OverviewStats(BaseModel):
+    total_items: int
+    instock_count: int
+    out_count: int
+    exchanging_count: int
+    hidden_count: int
+    instock_value: float
+    series_stats: list[SeriesStat]
+
+
+class MonthlyExchangeStat(BaseModel):
+    month: str
+    count: int
+
+
+class DashboardStats(BaseModel):
+    overview: OverviewStats
+    monthly_exchanges: list[MonthlyExchangeStat]
+
+
+class RecycleItemOut(ItemOut):
+    pass
+
+
+class RecycleExchangeOut(ExchangeOut):
+    pass
+
+
+class RecyclePage(BaseModel):
+    items: list[RecycleItemOut]
+    exchanges: list[RecycleExchangeOut]

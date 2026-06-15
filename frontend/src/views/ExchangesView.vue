@@ -30,6 +30,7 @@
             <th>藏品名称</th>
             <th>对手方</th>
             <th>差价</th>
+            <th>流转状态</th>
             <th>备注</th>
             <th>操作</th>
           </tr>
@@ -43,10 +44,16 @@
             <td :style="{ color: ex.price_difference >= 0 ? '#27ae60' : '#e74c3c' }">
               {{ ex.price_difference >= 0 ? '+' : '' }}¥{{ ex.price_difference?.toFixed(2) }}
             </td>
+            <td><span class="tag" :class="flowClass(ex.flow_status)">{{ ex.flow_status || '洽谈中' }}</span></td>
             <td>{{ ex.notes || '-' }}</td>
             <td>
               <div class="actions-cell">
-                <button class="btn btn-secondary btn-sm" @click="openForm(ex)">编辑</button>
+                <template v-if="ex.flow_status === '洽谈中'">
+                  <button class="btn btn-primary btn-sm" @click="handleConfirm(ex.id)">成交确认</button>
+                  <button class="btn btn-secondary btn-sm" @click="handleCancel(ex.id)">撤回</button>
+                  <button class="btn btn-secondary btn-sm" @click="openForm(ex)">编辑</button>
+                </template>
+                <span v-else class="locked-hint">已锁定</span>
                 <button class="btn btn-danger btn-sm" @click="handleDelete(ex.id)">删除</button>
               </div>
             </td>
@@ -147,9 +154,37 @@ async function loadExchanges(p = 1) {
 async function loadAllItems() {
   try {
     const { data } = await itemsApi.list({ page: 1, page_size: 999 })
-    allItems.value = data.items
+    allItems.value = data.items.filter(i => i.status === '在库')
   } catch (e) {
     console.error(e)
+  }
+}
+
+function flowClass(status) {
+  if (status === '已成交') return 'tag-done'
+  if (status === '已撤回') return 'tag-cancel'
+  return 'tag-pending'
+}
+
+async function handleConfirm(id) {
+  if (!confirm('确认成交？关联藏品将标记为「已出」且记录锁定。')) return
+  try {
+    await exchangesApi.confirm(id)
+    await loadExchanges(page.value)
+    await loadAllItems()
+  } catch (err) {
+    alert(err.response?.data?.detail || '操作失败')
+  }
+}
+
+async function handleCancel(id) {
+  if (!confirm('撤回置换？关联藏品将恢复「在库」。')) return
+  try {
+    await exchangesApi.cancel(id)
+    await loadExchanges(page.value)
+    await loadAllItems()
+  } catch (err) {
+    alert(err.response?.data?.detail || '操作失败')
   }
 }
 
@@ -212,3 +247,10 @@ onMounted(() => {
   loadAllItems()
 })
 </script>
+
+<style scoped>
+.tag-done { background: #e8f8ef; color: #27ae60; }
+.tag-cancel { background: #f0f0f0; color: #888; }
+.tag-pending { background: #fff3e0; color: #e67e22; }
+.locked-hint { font-size: 12px; color: #aaa; margin-right: 4px; }
+</style>

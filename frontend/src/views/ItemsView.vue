@@ -54,7 +54,13 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in items" :key="item.id">
+          <tr
+            v-for="item in items"
+            :key="item.id"
+            :class="{ 'row-active': selectedItem?.id === item.id }"
+            @click="openDetail(item)"
+            style="cursor:pointer"
+          >
             <td>
               <img v-if="item.image_path" :src="item.image_path" style="width:48px;height:48px;object-fit:cover;border-radius:8px;" />
               <span v-else style="color:#ccc;font-size:24px;">🧸</span>
@@ -68,7 +74,7 @@
             <td><span class="tag" :class="statusClass(item.status)">{{ item.status }}</span></td>
             <td>{{ item.batch_no || '-' }}</td>
             <td>
-              <div class="actions-cell">
+              <div class="actions-cell" @click.stop>
                 <button class="btn btn-secondary btn-sm" @click="openForm(item)">编辑</button>
                 <button class="btn btn-danger btn-sm" @click="handleDelete(item.id)">删除</button>
               </div>
@@ -81,6 +87,28 @@
         <button :disabled="page <= 1" @click="loadItems(page - 1)">上一页</button>
         <span class="page-info">第 {{ page }} / {{ totalPages }} 页 · 共 {{ total }} 条</span>
         <button :disabled="page >= totalPages" @click="loadItems(page + 1)">下一页</button>
+      </div>
+    </div>
+
+    <div v-if="selectedItem" class="detail-drawer">
+      <div class="drawer-header">
+        <h3>{{ selectedItem.name }} · 行情对照</h3>
+        <button class="btn btn-secondary btn-sm" @click="closeDetail">关闭</button>
+      </div>
+      <div class="drawer-body">
+        <div class="drawer-meta">
+          <span>款式 ID：<strong>{{ selectedItem.style_id }}</strong></span>
+          <span>购入价：<strong>¥{{ selectedItem.purchase_price?.toFixed(2) }}</strong></span>
+        </div>
+        <div v-if="trend.latest_price != null" class="diff-box" :class="diffClass">
+          最近成交 ¥{{ trend.latest_price?.toFixed(2) }}
+          <span v-if="trend.diff_percent != null">
+            （较购入 {{ trend.diff_percent >= 0 ? '+' : '' }}{{ trend.diff_percent }}%）
+          </span>
+        </div>
+        <div v-else class="diff-box neutral">暂无行情数据，请先在「行情参考」页录入</div>
+        <div ref="trendChartRef" class="trend-chart"></div>
+        <router-link to="/market" class="link-market">去录入行情 →</router-link>
       </div>
     </div>
 
@@ -161,8 +189,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
-import { itemsApi, uploadsApi } from '../api'
+import { ref, onMounted, computed, onUnmounted, nextTick } from 'vue'
+import * as echarts from 'echarts'
+import { itemsApi, uploadsApi, marketApi } from '../api'
 
 const items = ref([])
 const total = ref(0)
@@ -176,6 +205,11 @@ const showForm = ref(false)
 const editingItem = ref(null)
 const form = ref(getEmptyForm())
 const formError = ref('')
+
+const selectedItem = ref(null)
+const trend = ref({ records: [], latest_price: null, diff_percent: null })
+const trendChartRef = ref(null)
+let trendChart = null
 
 function getEmptyForm() {
   return {
@@ -193,6 +227,58 @@ function getEmptyForm() {
 }
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
+
+const diffClass = computed(() => {
+  if (trend.value.diff_percent == null) return 'neutral'
+  return trend.value.diff_percent >= 0 ? 'up' : 'down'
+})
+
+function renderTrendChart() {
+  if (!trendChartRef.value) return
+  if (trendChart) trendChart.dispose()
+  trendChart = echarts.init(trendChartRef.value)
+  const records = trend.value.records || []
+  trendChart.setOption({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 40, right: 16, top: 24, bottom: 28 },
+    xAxis: { type: 'category', data: records.map(r => r.record_date) },
+    yAxis: { type: 'value', scale: true },
+    series: [{
+      type: 'line',
+      smooth: true,
+      data: records.map(r => r.deal_price),
+      itemStyle: { color: '#6b4c3b' },
+      markLine: selectedItem.value ? {
+        silent: true,
+        data: [{ yAxis: selectedItem.value.purchase_price, name: '购入价' }],
+        lineStyle: { color: '#27ae60', type: 'dashed' },
+      } : undefined,
+    }],
+  })
+}
+
+async function openDetail(item) {
+  selectedItem.value = item
+  try {
+    const { data } = await marketApi.trend(item.style_id, {
+      purchase_price: item.purchase_price,
+      limit: 10,
+    })
+    trend.value = data
+    await nextTick()
+    renderTrendChart()
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+function closeDetail() {
+  selectedItem.value = null
+  if (trendChart) {
+    trendChart.dispose()
+    trendChart = null
+  }
+}
 
 function rarityClass(rarity) {
   if (rarity === '隐藏') return 'tag-hidden'
@@ -298,4 +384,41 @@ onMounted(() => {
   loadItems(1)
   loadSeries()
 })
+
+onUnmounted(() => {
+  if (trendChart) trendChart.dispose()
+})
 </script>
+
+<style scoped>
+.row-active { background: #faf6f2 !important; }
+.detail-drawer {
+  position: fixed;
+  top: 60px;
+  right: 0;
+  width: 380px;
+  height: calc(100vh - 60px);
+  background: #fff;
+  box-shadow: -4px 0 20px rgba(0,0,0,0.1);
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+}
+.drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+.drawer-header h3 { font-size: 15px; }
+.drawer-body { padding: 20px; flex: 1; overflow-y: auto; }
+.drawer-meta { display: flex; flex-direction: column; gap: 8px; font-size: 14px; margin-bottom: 16px; }
+.diff-box { padding: 12px; border-radius: 8px; font-size: 14px; margin-bottom: 16px; }
+.diff-box.up { background: #fdecea; color: #c0392b; }
+.diff-box.down { background: #e8f8ef; color: #27ae60; }
+.diff-box.neutral { background: #f5f5f5; color: #888; }
+.trend-chart { height: 220px; margin-bottom: 12px; }
+.link-market { font-size: 13px; color: #6b4c3b; text-decoration: none; }
+.link-market:hover { text-decoration: underline; }
+</style>

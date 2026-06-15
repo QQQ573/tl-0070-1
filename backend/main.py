@@ -3,15 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 from database import engine, Base
-from migrate import run_migrations
-from routers import items, exchanges, uploads, market_prices, stats, recycle
+from routers import items, exchanges, uploads
 
-run_migrations()
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="Labubu 藏品管理系统",
     description="藏家 Labubu 藏品档案与置换记录管理",
-    version="2.0.0",
+    version="1.0.0",
 )
 
 app.add_middleware(
@@ -29,9 +28,6 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.include_router(items.router)
 app.include_router(exchanges.router)
 app.include_router(uploads.router)
-app.include_router(market_prices.router)
-app.include_router(stats.router)
-app.include_router(recycle.router)
 
 
 @app.get("/")

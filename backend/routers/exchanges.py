@@ -36,8 +36,6 @@ def create_exchange(
     item = crud.get_item(db, exchange.item_id)
     if not item:
         raise HTTPException(status_code=400, detail="关联藏品不存在")
-    if item.status != "在库":
-        raise HTTPException(status_code=400, detail="仅「在库」状态的藏品可发起置换")
     db_exchange = crud.create_exchange(db, exchange)
     ex_out = schemas.ExchangeOut.model_validate(db_exchange)
     ex_out.item_series = item.series
@@ -55,40 +53,7 @@ def update_exchange(
         item = crud.get_item(db, exchange.item_id)
         if not item:
             raise HTTPException(status_code=400, detail="关联藏品不存在")
-    try:
-        result = crud.update_exchange(db, exchange_id, exchange)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    if not result:
-        raise HTTPException(status_code=404, detail="置换记录不存在")
-    ex_out = schemas.ExchangeOut.model_validate(result)
-    if result.item:
-        ex_out.item_series = result.item.series
-        ex_out.item_name = result.item.name
-    return ex_out
-
-
-@router.post("/{exchange_id}/confirm", response_model=schemas.ExchangeOut)
-def confirm_exchange(exchange_id: int, db: Session = Depends(get_db)):
-    try:
-        result = crud.confirm_exchange(db, exchange_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    if not result:
-        raise HTTPException(status_code=404, detail="置换记录不存在")
-    ex_out = schemas.ExchangeOut.model_validate(result)
-    if result.item:
-        ex_out.item_series = result.item.series
-        ex_out.item_name = result.item.name
-    return ex_out
-
-
-@router.post("/{exchange_id}/cancel", response_model=schemas.ExchangeOut)
-def cancel_exchange(exchange_id: int, db: Session = Depends(get_db)):
-    try:
-        result = crud.cancel_exchange(db, exchange_id)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    result = crud.update_exchange(db, exchange_id, exchange)
     if not result:
         raise HTTPException(status_code=404, detail="置换记录不存在")
     ex_out = schemas.ExchangeOut.model_validate(result)
